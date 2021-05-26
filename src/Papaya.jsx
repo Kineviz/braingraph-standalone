@@ -19,13 +19,6 @@ export default function Papaya() {
   const [tool, setTool] = useState(papaya.MAGIC_WAND);
 
   useEffect(async () => {
-    if (!jwt) {
-      const jwt = await cognito.login("bgoosman", "px$p83sjTbA9[}");
-      dispatch(setJwt(jwt));
-    }
-  }, []);
-
-  useEffect(async () => {
     if (jwt && studyId) {
       try {
         setLoading({ status: true, text: "Fetching NIFTI URLs..." });
