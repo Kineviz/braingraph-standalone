@@ -86,9 +86,9 @@ export default function Papaya() {
 
   return (
     <>
-      <form className="space-x-4 p-4 flex">
+      <form className="-m-2 p-4 flex-wrap">
         <select
-          className="rounded-lg border-2 p-2 pr-4 pl-4"
+          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           name="studyId"
           onChange={(e) => setStudyId(e.target.value)}
         >
@@ -98,7 +98,7 @@ export default function Papaya() {
           ))}
         </select>
         <input
-          className="rounded-lg border-2 p-2 pr-4 pl-4"
+          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           type="number"
           id="localMin"
           name="localMin"
@@ -112,7 +112,7 @@ export default function Papaya() {
           value={magicWandOptions.localMin}
         ></input>
         <button
-          className={`rounded-lg border-2 p-2 pr-4 pl-4 ${
+          className={`rounded-lg border-2 m-2 p-2 pr-4 pl-4 ${
             tool === papaya.MAGIC_WAND ? "text-white bg-gradient-to-r from-green-400 to-blue-500" : ""
           }`}
           onClick={(e) => {
@@ -123,7 +123,7 @@ export default function Papaya() {
           Magic Wand
         </button>
         <button
-          className={`rounded-lg border-2 p-2 pr-4 pl-4 ${
+          className={`rounded-lg border-2 m-2 p-2 pr-4 pl-4 ${
             tool === papaya.PAINT_BRUSH ? "text-white bg-gradient-to-r from-green-400 to-blue-500" : ""
           }`}
           onClick={(e) => {
@@ -134,7 +134,7 @@ export default function Papaya() {
           Paint
         </button>
         <button
-          className="rounded-lg border-2 p-2 pr-4 pl-4"
+          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           onClick={(e) => {
             e.preventDefault();
             papaya.commitSelection();
@@ -144,7 +144,7 @@ export default function Papaya() {
           Commit
         </button>
         <button
-          className="rounded-lg border-2 p-2 pr-4 pl-4"
+          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           onClick={(e) => {
             e.preventDefault();
             papaya.removeSelection();
@@ -154,7 +154,7 @@ export default function Papaya() {
           Clear
         </button>
         <button
-          className="rounded-lg border-2 p-2 pr-4 pl-4"
+          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           onClick={(e) => {
             e.preventDefault();
             papaya.downloadNiiGz("lesion");
@@ -163,20 +163,19 @@ export default function Papaya() {
           Save
         </button>
         {loading.status && (
-          <>
+          <div
+            className="flex m-2">
             <Oval stroke="#98ff98" />
             {loading?.text && (
-              <p className="leading-loose">
+              <p className="ml-2 leading-loose">
                 <span className="align-middle">{loading.text}</span>
               </p>
             )}
-          </>
+          </div>
         )}
       </form>
       {studyUrls && (
-        <div style={{ width: 1024 }}>
           <div id="papaya" className="papaya" data-params="params"></div>
-        </div>
       )}
     </>
   );
