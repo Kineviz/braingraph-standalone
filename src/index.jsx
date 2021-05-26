@@ -34,7 +34,7 @@ function hijackGrove() {
   // Put the app root <div> into the <body>
   $(appElement).prependTo("body");
 }
-// hijackGrove();
+hijackGrove();
 
 if (import.meta.hot) {
   import.meta.hot.accept();
