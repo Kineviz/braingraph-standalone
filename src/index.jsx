@@ -40,6 +40,8 @@ function hijackGrove() {
 const hijackGroveValue = window.localStorage.getItem('hijackGrove')
 if (hijackGroveValue !== 'false') {
   hijackGrove();
+} else {
+  console.log('Opting out of hijackGrove')
 }
 
 if (import.meta.hot) {
