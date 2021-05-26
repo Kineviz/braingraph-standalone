@@ -25,6 +25,8 @@ ReactDOM.render(
 );
 
 function hijackGrove() {
+  console.log('Hijacking Grove');
+
   // Remove and save the app root <div>
   const appElement = $(`#${appRootId}`).detach();
 
@@ -34,7 +36,11 @@ function hijackGrove() {
   // Put the app root <div> into the <body>
   $(appElement).prependTo("body");
 }
-hijackGrove();
+
+const hijackGroveValue = window.localStorage.getItem('hijackGrove')
+if (hijackGroveValue !== 'false') {
+  hijackGrove();
+}
 
 if (import.meta.hot) {
   import.meta.hot.accept();
