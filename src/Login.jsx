@@ -24,7 +24,7 @@ export default function Login() {
     <div className="Login" className="p-4">
       <form onSubmit={handleSubmit} className="space-y-4">
         <fieldset className="flex space-x-2">
-          <label className="text-right">Email</label>
+          <label className="text-right">Username</label>
           <input
             className="w-full px-4 py-2 border rounded-lg"
             autoFocus

@@ -4,7 +4,7 @@ import $ from "jquery";
 
 export const MAGIC_WAND = "magicWand";
 export const PAINT_BRUSH = "paintBrush";
-export const LESION_VALUE = 5;
+export const LESION_VALUE = 1;
 
 const colors = (function () {
   let selected = new THREE.Color(0xff00ff);
@@ -107,22 +107,27 @@ export async function loadPapaya(volumeUrls) {
 
 export function renderGraph() {
   GraphXR.clearGraph();
-  GraphXR.addNodes(Object.values(currentSelection));
-  if (lesionNodes)
-    GraphXR.addNodes(Object.values(lesionNodes));
-  // GraphXR.addNodes(Object.values(globalNodes));
+  const merged = {
+    ...currentSelection,
+    ...paintBrushSelection,
+    ...lesionNodes,
+  };
+  console.log(paintBrushSelection);
+  GraphXR.addNodes(Object.values(merged));
   Object.entries(colors).forEach(([category, color]) => {
     GraphXR.setCategoryColor(category, "#" + color.getHexString());
   });
 }
 
-export function commitSelection() {
-  console.log("commitSelection()");
-  const merged = {
+export function getSelectedNodes() {
+  return Object.values({
     ...currentSelection,
-    ...paintBrushSelection,
-  }
-  Object.values(merged).forEach((node) => {
+    ...paintBrushSelection
+  })
+}
+
+export function commitSelection() {
+  getSelectedNodes().forEach((node) => {
     // Map Selected Node to Lesion Node
     node.data.detail.type = "lesion";
     node.color = colors.lesion;
@@ -137,12 +142,13 @@ export function commitSelection() {
 }
 
 export function removeSelection() {
-  Object.values(currentSelection).forEach((node) => {
+  getSelectedNodes().forEach((node) => {
     const { xid, yid, zid } = node.properties;
     setVoxel(volumes.lesion, xid, yid, zid, 0);
     setVoxel(volumes.sandbox, xid, yid, zid, 0);
     const hash = hashXYZ(xid, yid, zid);
     delete currentSelection[hash];
+    delete paintBrushSelection[hash];
     delete lesionNodes[hash];
   });
   redraw();
@@ -211,7 +217,6 @@ export function paintBrush(coord) {
         const targetZ = coord.z + z;
         console.log("painting", targetX, targetY, targetZ, value);
         getImageDataIndex(volume, targetX, targetY, targetZ).forEach((index) => {
-          let id = hashXYZ(targetX, targetY, targetZ);
           const node = makeNode(targetX, targetY, targetZ, "selected", volumes, dimensions);
           paintBrushSelection[node.id] = node;
           volume.imageData.data[index] = value;
@@ -398,14 +403,7 @@ function bfs(nodes, node, min, max, volumeKey, category, maxBfsSteps, volumes, d
   return { queue, component };
 }
 
-export function* computeSelection({
-  screenVolumes,
-  volumes,
-  seed: { x, y, z },
-  localMin,
-  globalMax,
-  dimensions,
-}) {
+export function* computeSelection({ screenVolumes, volumes, seed: { x, y, z }, localMin, globalMax, dimensions }) {
   console.log("computeSelection()", x, y, z, localMin);
   let id = hashXYZ(x, y, z);
   const seedNode = makeNode(x, y, z, "lesion", volumes, dimensions);
