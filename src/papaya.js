@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import * as GraphXR from "./graphxr";
 import $ from "jquery";
+import * as GraphXR from "./graphxr";
+import * as marchingCubes from "./marching-cubes";
 
 export const MAGIC_WAND = "magicWand";
 export const PAINT_BRUSH = "paintBrush";
@@ -20,6 +21,8 @@ const colors = (function () {
 let screenVolumes,
   volumes,
   dimensions,
+  selectionMesh,
+  lesionMesh,
   maxBfsSteps = 5000,
   globalMax = 100000,
   currentSelection = {},
@@ -29,6 +32,25 @@ let screenVolumes,
 
 export function isLoaded() {
   return $("#papayaContainer0").length > 0;
+}
+
+export function scalePosition(position) {
+  const dimensions = getDimensions();
+  const { x, y, z } = position;
+  const scale = 32;
+  const xPos = (x - dimensions.x / 2) / scale; // 256 - 256/2 = 128, 0 - 256/2 = -128
+  const yPos = (y - dimensions.y / 2) / scale;
+  const zPos = (z - dimensions.z / 2) / scale;
+  return new THREE.Vector3(xPos, yPos, zPos);
+}
+
+export function getDimensions() {
+  const container = window.papayaContainers[0];
+  const viewer = container.viewer;
+  const x = viewer.axialSlice.xDim;
+  const y = viewer.axialSlice.yDim;
+  const z = viewer.coronalSlice.yDim;
+  return { x, y, z };
 }
 
 export function getCurrentCoord() {
@@ -105,15 +127,45 @@ export async function loadPapaya(volumeUrls) {
   });
 }
 
+function diposeMesh(mesh) {
+  GraphXR.getScene().remove(mesh);
+  mesh.geometry.dispose();
+  mesh.material.dispose();
+}
+
 export function renderGraph() {
   GraphXR.clearGraph();
-  const merged = {
+
+  // Add selection nodes and lesion nodes to graph
+  const selectionNodes = Object.values({
     ...currentSelection,
     ...paintBrushSelection,
-    ...lesionNodes,
-  };
-  console.log(paintBrushSelection);
-  GraphXR.addNodes(Object.values(merged));
+  });
+  const lesionNodeValues = Object.values(lesionNodes)
+  GraphXR.addNodes(selectionNodes);
+  GraphXR.addNodes(lesionNodeValues);
+
+  // Add some light
+  // GraphXR.getScene().add(new THREE.AmbientLight(0x404040))
+  const light = new THREE.DirectionalLight( 0x404040 );
+  GraphXR.getScene().add(light);
+  // DEBUG WITH A BOX
+
+  // Compute surface of selection nodes using Marching Cubes
+  if (selectionNodes?.length > 0) {
+    if (selectionMesh) diposeMesh(selectionMesh);
+    selectionMesh = marchingCubes.computeMesh(selectionNodes, scalePosition);
+    GraphXR.getScene().add(selectionMesh);
+  }
+
+  // Compute surface of lesion nodes using Marching Cubes
+  if (lesionNodes?.length > 0) {
+    if (lesionMesh) diposeMesh(lesionMesh);
+    lesionMesh = marchingCubes.computeMesh(lesionNodeValues, scalePosition);
+    GraphXR.getScene().add(lesionMesh);
+  }
+
+  // Style the nodes
   Object.entries(colors).forEach(([category, color]) => {
     GraphXR.setCategoryColor(category, "#" + color.getHexString());
   });
@@ -122,8 +174,8 @@ export function renderGraph() {
 export function getSelectedNodes() {
   return Object.values({
     ...currentSelection,
-    ...paintBrushSelection
-  })
+    ...paintBrushSelection,
+  });
 }
 
 export function commitSelection() {
@@ -155,17 +207,16 @@ export function removeSelection() {
 }
 
 export function updateSelection(localMin, seed) {
-  for (let { component, queue, step } of computeSelection({
+  let { component, queue, step } = computeSelection({
     screenVolumes,
     volumes,
     seed,
     localMin,
     globalMax,
     dimensions,
-  })) {
-    currentSelection = component;
-    drawSelection(Object.values(component), volumes.sandbox, 5);
-  }
+  });
+  currentSelection = component;
+  drawSelection(Object.values(component), volumes.sandbox, 5);
 }
 
 export function fill(volume, value) {
@@ -350,11 +401,7 @@ function makeNode(x, y, z, category, volumes, dimensions) {
       background,
     },
   };
-  const scale = 128;
-  const xPos = (x - dimensions.xDim / 2) / scale; // 256 - 256/2 = 128, 0 - 256/2 = -128
-  const yPos = (y - dimensions.yDim / 2) / scale;
-  const zPos = (z - dimensions.zDim / 2) / scale;
-  node.position.set(xPos, yPos, zPos);
+  node.position = scalePosition({ x, y, z });
   return node;
 }
 
@@ -403,7 +450,7 @@ function bfs(nodes, node, min, max, volumeKey, category, maxBfsSteps, volumes, d
   return { queue, component };
 }
 
-export function* computeSelection({ screenVolumes, volumes, seed: { x, y, z }, localMin, globalMax, dimensions }) {
+export function computeSelection({ screenVolumes, volumes, seed: { x, y, z }, localMin, globalMax, dimensions }) {
   console.log("computeSelection()", x, y, z, localMin);
   let id = hashXYZ(x, y, z);
   const seedNode = makeNode(x, y, z, "lesion", volumes, dimensions);
@@ -422,8 +469,8 @@ export function* computeSelection({ screenVolumes, volumes, seed: { x, y, z }, l
       volumes,
       dimensions
     );
-    drawSelection(Object.values(component), volumes.sandbox, 5);
-    yield { component, queue, step: 0 };
+    // drawSelection(Object.values(component), volumes.sandbox, 5);
+    return { component, queue, step: 0 };
   } else {
     console.log("Computing new component");
     let step = 0;
@@ -464,7 +511,7 @@ export function* computeSelection({ screenVolumes, volumes, seed: { x, y, z }, l
       }
       if (derivative == 1) break;
     }
-    drawSelection(Object.values(lastComponent), volumes.sandbox, 5);
-    yield { component: lastComponent, queue: lastQueue, step };
+    // drawSelection(Object.values(lastComponent), volumes.sandbox, 5);
+    return { component: lastComponent, queue: lastQueue, step };
   }
 }

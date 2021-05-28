@@ -2,12 +2,17 @@ import * as THREE from 'three'
 
 const noop = (msg) => () => console.log(msg);
 let noopGraph = {
-  addNodes: noop('addNodes'),
-  clear: noop('clear'),
+  addNodes: noop('controller.graph.addNodes'),
+  clear: noop('controller.graph.clear'),
 }
 let noopApi = {
   graph: {
-    setCategoryColor: noop('setCategoryColor'),
+    setCategoryColor: noop('API.graph.setCategoryColor'),
+  },
+}
+let noopDrawing = {
+  scene: {
+    add: noop('scene.add')
   },
 }
 
@@ -25,13 +30,19 @@ class MockNode {
   }
 };
 
+function isGraphXrLoaded() {
+  return !!window._app;
+}
+
 function getApi() {
-  return (window._app) ? window._app.controller.API : noopApi;
+  return isGraphXrLoaded() ? window._app.controller.API : noopApi;
 }
 
 function getGraph() {
-  return (window._app) ? window._app.controller.graph : noopGraph;
+  return isGraphXrLoaded() ? window._app.controller.graph : noopGraph;
 }
+
+// GRAPH FUNCTIONS
 
 export function clearGraph() {
   return getGraph().clear();
@@ -47,4 +58,14 @@ export function addNodes(nodes) {
 
 export function setCategoryColor(category, color) {
   return getApi().graph.setCategoryColor(category, color);
+}
+
+// 3d FUNCTIONS
+
+function getDrawing() {
+  return isGraphXrLoaded() ? window._app.controller.drawing : noopDrawing;
+}
+
+export function getScene() {
+  return getDrawing().cloudScene
 }

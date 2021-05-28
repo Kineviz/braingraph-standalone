@@ -50,7 +50,7 @@
     "redux": "^4.1.0",
     "redux-persist": "^6.0.0",
     "svg-loaders-react": "^2.2.1",
-    "three": "^0.128.0",
+    "three": "0.116.0",
     "yup": "^0.32.9"
   }
 }
