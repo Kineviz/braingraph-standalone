@@ -60,8 +60,6 @@ export function getCurrentCoord() {
 export async function loadPapaya(volumeUrls) {
   console.log("loadPapaya");
 
-  if (isLoaded()) return;
-
   return new Promise((resolve, reject) => {
     window.params = {
       images: [
@@ -123,6 +121,10 @@ export async function loadPapaya(volumeUrls) {
     };
 
     console.log("Loading Papaya");
+    window.papayaContainers = [];
+    $(`div[data-params='params']`).remove();
+    if ($("#papaya").length == 0)
+      $("#app-root").append(`<div id="papaya" class="papaya" data-params="params"></div>`)
     window.papaya.Container.startPapaya();
   });
 }

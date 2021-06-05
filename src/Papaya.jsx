@@ -189,9 +189,6 @@ export default function Papaya() {
           </div>
         )}
       </form>
-      {studyUrls && (
-          <div id="papaya" className="papaya" data-params="params"></div>
-      )}
     </>
   );
 }
