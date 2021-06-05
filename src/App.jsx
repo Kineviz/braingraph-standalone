@@ -9,5 +9,5 @@ import "./App.css";
 export default function App() {
   const jwt = useSelector((state) => state.s3UrlService.jwt);
 
-  return <div>{(jwt && <Papaya />) || <Login />}</div>;
+  return <div id="app-body">{(jwt && <Papaya />) || <Login />}</div>;
 }

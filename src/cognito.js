@@ -51,7 +51,7 @@ export async function getObjectUrls(token, studyId) {
   const volumeUrls = {};
   for (const [key, value] of Object.entries(objectNames)) {
     volumeUrls[key] = (await getObjectUrl(token, value)).replace(/['"]+/g, "");
-    // volumeUrls[key] = 'http://localhost:5500/scans/subtraction.nii.gz';
+    // volumeUrls[key] = 'http://localhost:5501/scans/subtraction.nii.gz';
   }
   return volumeUrls;
 }

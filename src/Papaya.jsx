@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Oval } from "svg-loaders-react";
+import {RangeStepInput} from 'react-range-step-input';
 
 import * as papaya from "./papaya.js";
 import * as cognito from "./cognito.js";
@@ -98,19 +99,33 @@ export default function Papaya() {
           ))}
         </select>
         <input
-          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
-          type="number"
+          type="range"
+          className="m-2"
           id="localMin"
           name="localMin"
-          min="-100"
-          max="100"
+          min="-5"
+          max="5"
           step="0.01"
           onChange={(e) => {
             e.preventDefault();
             setMagicWandOptions({...magicWandOptions, localMin: e.target.value});
           }}
           value={magicWandOptions.localMin}
-        ></input>
+        />
+        <input
+          type="number"
+          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
+          id="localMin"
+          name="localMin"
+          min="-5"
+          max="5"
+          step="0.01"
+          onChange={(e) => {
+            e.preventDefault();
+            setMagicWandOptions({...magicWandOptions, localMin: e.target.value});
+          }}
+          value={magicWandOptions.localMin}
+        />
         <button
           className={`rounded-lg border-2 m-2 p-2 pr-4 pl-4 ${
             tool === papaya.MAGIC_WAND ? "text-white bg-gradient-to-r from-green-400 to-blue-500" : ""

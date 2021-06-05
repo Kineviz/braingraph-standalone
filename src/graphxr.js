@@ -12,7 +12,12 @@ let noopApi = {
 }
 let noopDrawing = {
   scene: {
-    add: noop('scene.add')
+    add: noop('scene.add'),
+    remove: noop('scene.remove')
+  },
+  cloudScene: {
+    add: noop('scene.add'),
+    remove: noop('scene.remove')
   },
 }
 

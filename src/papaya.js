@@ -141,13 +141,13 @@ export function renderGraph() {
     ...currentSelection,
     ...paintBrushSelection,
   });
-  const lesionNodeValues = Object.values(lesionNodes)
+  const lesionNodeValues = Object.values(lesionNodes);
   GraphXR.addNodes(selectionNodes);
   GraphXR.addNodes(lesionNodeValues);
 
   // Add some light
   // GraphXR.getScene().add(new THREE.AmbientLight(0x404040))
-  const light = new THREE.DirectionalLight( 0x404040 );
+  const light = new THREE.DirectionalLight(0x404040);
   GraphXR.getScene().add(light);
   // DEBUG WITH A BOX
 
@@ -207,16 +207,18 @@ export function removeSelection() {
 }
 
 export function updateSelection(localMin, seed) {
-  let { component, queue, step } = computeSelection({
-    screenVolumes,
-    volumes,
-    seed,
-    localMin,
-    globalMax,
-    dimensions,
-  });
-  currentSelection = component;
-  drawSelection(Object.values(component), volumes.sandbox, 5);
+  if (seed && screenVolumes && volumes) {
+    let { component, queue, step } = computeSelection({
+      screenVolumes,
+      volumes,
+      seed,
+      localMin,
+      globalMax,
+      dimensions,
+    });
+    currentSelection = component;
+    drawSelection(Object.values(component), volumes.sandbox, 5);
+  }
 }
 
 export function fill(volume, value) {
@@ -386,8 +388,8 @@ function hashXYZ(x, y, z) {
 
 function makeNode(x, y, z, category, volumes, dimensions) {
   const id = hashXYZ(x, y, z);
-  const lesion = getVoxel(volumes.lesion, x, y, z);
-  const background = getVoxel(volumes.background, x, y, z);
+  const lesion = volumes ? getVoxel(volumes.lesion, x, y, z) : 0;
+  const background = volumes ? getVoxel(volumes.background, x, y, z) : 0;
   const node = GraphXR.makeNode(id);
   node.data.detail = {
     type: category,
