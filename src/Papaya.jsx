@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Oval } from "svg-loaders-react";
-import {RangeStepInput} from 'react-range-step-input';
+import _ from "lodash";
 
 import * as papaya from "./papaya.js";
 import * as cognito from "./cognito.js";
@@ -9,13 +9,30 @@ import { setJwt, getJwt } from "./features/s3-url-service/s3UrlServiceSlice";
 
 import "./papaya.css";
 
+const STEP = 0.01;
+
+const debouncedMagicWand = _.debounce((magicWandOptions, setLoading) => {
+  if (papaya.isLoaded()) {
+    setLoading({ status: true, text: "Computing selection..." });
+    console.log(`debug: magicWandOptions`, magicWandOptions);
+    const { localMin, seed } = magicWandOptions;
+    papaya.magicWand(localMin, seed);
+    setLoading({ status: false, text: undefined });
+  }
+}, 300);
+
 export default function Papaya() {
   const jwt = useSelector(getJwt);
   const dispatch = useDispatch();
 
   const [studyId, setStudyId] = useState("");
   const [studyUrls, setStudyUrls] = useState(undefined);
-  const [magicWandOptions, setMagicWandOptions] = useState({seed: undefined, localMin: undefined});
+  const [magicWandOptions, setMagicWandOptions] = useState({ seed: undefined, localMin: undefined });
+
+  const DECREMENT_THRESHOLD = 'DECREMENT_THRESHOLD'
+  const INCREMENT_THRESHOLD = 'INCREMENT_THRESHOLD'
+  const [thresholdAction, setThresholdAction] = useState({type: undefined})
+
   const [loading, setLoading] = useState({ status: false, text: "" });
   const [tool, setTool] = useState(papaya.MAGIC_WAND);
 
@@ -33,19 +50,35 @@ export default function Papaya() {
     }
   }, [studyId]);
 
+  const registerMouseWheel = ($papayaCanvas) => {
+    $papayaCanvas.off("mousewheel DOMMouseScroll");
+    $papayaCanvas.on("mousewheel DOMMouseScroll", function (e) {
+      if (e.shiftKey) {
+        if (e.originalEvent.wheelDelta > 0 || e.originalEvent.detail < 0) {
+          // scroll up
+          setThresholdAction({type: INCREMENT_THRESHOLD})
+        } else {
+          // scroll down
+          setThresholdAction({type: DECREMENT_THRESHOLD})
+        }
+      }
+    });
+  };
+
   const registerPapayaEventHandlers = () => {
-    console.log(`debug: registerPapayaEventHandlers tool=${tool}`)
+    console.log(`debug: registerPapayaEventHandlers tool=${tool}`);
     const $papayaCanvas = $('div[id^="papayaViewer"] canvas');
-    $papayaCanvas.off('mousedown mouseup mouseover')
+    registerMouseWheel($papayaCanvas);
+    $papayaCanvas.off("mousedown mouseup mouseover");
     $papayaCanvas.on("mousedown", function (e) {
       if (e.shiftKey) {
         const handler = () => {
-          console.log(`debug: handle shiftKey tool=${tool}`)
+          console.log(`debug: handle shiftKey tool=${tool}`);
           if (tool === papaya.MAGIC_WAND) {
-            setMagicWandOptions({
-              seed: papaya.getCurrentCoord(),
-              localMin: papaya.getValueInBackground(papaya.getCurrentCoord()),
-            });
+            const seed = papaya.getCurrentCoord();
+            const localMin = papaya.getValueInBackground(papaya.getCurrentCoord());
+            const options = { seed, localMin };
+            setMagicWandOptions(options);
           } else if (tool === papaya.PAINT_BRUSH) {
             papaya.paintBrush(papaya.getCurrentCoord(), 0);
           }
@@ -59,6 +92,17 @@ export default function Papaya() {
       }
     });
   };
+
+  useEffect(() => {
+    const {type} = thresholdAction;
+    if (type) {
+      let {localMin} = magicWandOptions;
+      localMin += type === DECREMENT_THRESHOLD ? -STEP : STEP;
+      console.log(`debug: thresholdAction localMin=${localMin}`)
+      setMagicWandOptions({...magicWandOptions, localMin})
+      setThresholdAction({type: undefined})
+    }
+  }, [thresholdAction])
 
   useEffect(async () => {
     if (papaya.isLoaded()) {
@@ -76,13 +120,7 @@ export default function Papaya() {
   }, [studyUrls]);
 
   useEffect(async () => {
-    if (papaya.isLoaded()) {
-      setLoading({ status: true, text: "Computing selection..." });
-      console.log(`debug: magicWandOptions`, magicWandOptions)
-      const {localMin, seed} = magicWandOptions
-      papaya.magicWand(localMin, seed);
-      setLoading({ status: false, text: undefined });
-    }
+    debouncedMagicWand(magicWandOptions, setLoading);
   }, [magicWandOptions]);
 
   return (
@@ -105,10 +143,10 @@ export default function Papaya() {
           name="localMin"
           min="-5"
           max="5"
-          step="0.01"
+          step={STEP}
           onChange={(e) => {
             e.preventDefault();
-            setMagicWandOptions({...magicWandOptions, localMin: e.target.value});
+            setMagicWandOptions({ ...magicWandOptions, localMin: parseFloat(e.target.value) });
           }}
           value={magicWandOptions.localMin}
         />
@@ -119,10 +157,10 @@ export default function Papaya() {
           name="localMin"
           min="-5"
           max="5"
-          step="0.01"
+          step={STEP}
           onChange={(e) => {
             e.preventDefault();
-            setMagicWandOptions({...magicWandOptions, localMin: e.target.value});
+            setMagicWandOptions({ ...magicWandOptions, localMin: parseFloat(e.target.value) });
           }}
           value={magicWandOptions.localMin}
         />
@@ -178,8 +216,7 @@ export default function Papaya() {
           Save
         </button>
         {loading.status && (
-          <div
-            className="flex m-2">
+          <div className="flex m-2">
             <Oval stroke="#98ff98" />
             {loading?.text && (
               <p className="ml-2 leading-loose">
