@@ -22,10 +22,6 @@ const debouncedMagicWand = _.debounce((magicWandOptions, setLoading) => {
 }, 300);
 
 export default function Papaya() {
-  const jwt = useSelector(getJwt);
-  const dispatch = useDispatch();
-
-  const [studyId, setStudyId] = useState("");
   const [studyUrls, setStudyUrls] = useState(undefined);
   const [magicWandOptions, setMagicWandOptions] = useState({ seed: undefined, localMin: undefined });
 
@@ -35,20 +31,6 @@ export default function Papaya() {
 
   const [loading, setLoading] = useState({ status: false, text: "" });
   const [tool, setTool] = useState(papaya.MAGIC_WAND);
-
-  useEffect(async () => {
-    if (jwt && studyId) {
-      try {
-        setLoading({ status: true, text: "Fetching NIFTI URLs..." });
-        const studyUrls = await cognito.getObjectUrls(jwt, studyId);
-        setStudyUrls(studyUrls);
-        setLoading({ status: false, text: undefined });
-      } catch (e) {
-        setLoading({ status: false });
-        dispatch(setJwt(undefined));
-      }
-    }
-  }, [studyId]);
 
   const registerMouseWheel = ($papayaCanvas) => {
     $papayaCanvas.off("mousewheel DOMMouseScroll");
@@ -123,19 +105,34 @@ export default function Papaya() {
     debouncedMagicWand(magicWandOptions, setLoading);
   }, [magicWandOptions]);
 
+  useEffect(async () => {
+    if (window.Flywheel) {
+      setLoading({ status: true, text: "Loading NIFTIs from Flywheel..." });
+      window.Flywheel.initExtension().then((extension) => {
+        console.log(extension);
+        const {container} = extension;
+        const {files} = container;
+        console.log(files);
+        const blobs = files.map((file) => extension.getFileBlob(container, file))
+        Promise.all(blobs).then(blobs => {
+          const studyUrls = Object.fromEntries(
+            blobs.map((blob, i) => {
+              const fileName = files[i].name;
+              return [fileName.substr(0, fileName.indexOf('.')), URL.createObjectURL(blob)]
+            })
+          )
+          setLoading({ status: false, text: undefined });
+          setStudyUrls(studyUrls);
+        })
+      }).catch(e => {
+        console.log('initExtension failed', e)
+      })
+    }
+  }, [])
+
   return (
     <>
       <form className="-m-2 p-4 flex-wrap">
-        <select
-          className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
-          name="studyId"
-          onChange={(e) => setStudyId(e.target.value)}
-        >
-          <option>Select a study...</option>
-          {cognito.studyIds.map((studyId) => (
-            <option key={studyId}>{studyId}</option>
-          ))}
-        </select>
         <input
           type="range"
           className="m-2"
