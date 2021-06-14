@@ -9,7 +9,7 @@ import { setJwt, getJwt } from "./features/s3-url-service/s3UrlServiceSlice";
 
 import "./papaya.css";
 
-const STEP = 0.01;
+const STEP = 0.1;
 
 const debouncedMagicWand = _.debounce((magicWandOptions, setLoading) => {
   if (papaya.isLoaded()) {
