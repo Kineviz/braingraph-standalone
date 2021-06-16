@@ -25,10 +25,13 @@ export default function Papaya() {
   const [studyUrls, setStudyUrls] = useState(undefined);
   const [magicWandOptions, setMagicWandOptions] = useState({ seed: undefined, localMin: undefined });
 
-  const DECREMENT_THRESHOLD = 'DECREMENT_THRESHOLD'
-  const INCREMENT_THRESHOLD = 'INCREMENT_THRESHOLD'
-  const [thresholdAction, setThresholdAction] = useState({type: undefined})
+  const DECREMENT_THRESHOLD = "DECREMENT_THRESHOLD";
+  const INCREMENT_THRESHOLD = "INCREMENT_THRESHOLD";
+  const [thresholdAction, setThresholdAction] = useState({ type: undefined });
 
+  const [uploadAction, setUploadAction] = useState({ volumeId: undefined });
+
+  const [extension, setExtension] = useState(undefined);
   const [loading, setLoading] = useState({ status: false, text: "" });
   const [tool, setTool] = useState(papaya.MAGIC_WAND);
 
@@ -38,10 +41,10 @@ export default function Papaya() {
       if (e.shiftKey) {
         if (e.originalEvent.wheelDelta > 0 || e.originalEvent.detail < 0) {
           // scroll up
-          setThresholdAction({type: INCREMENT_THRESHOLD})
+          setThresholdAction({ type: INCREMENT_THRESHOLD });
         } else {
           // scroll down
-          setThresholdAction({type: DECREMENT_THRESHOLD})
+          setThresholdAction({ type: DECREMENT_THRESHOLD });
         }
       }
     });
@@ -76,15 +79,15 @@ export default function Papaya() {
   };
 
   useEffect(() => {
-    const {type} = thresholdAction;
+    const { type } = thresholdAction;
     if (type) {
-      let {localMin} = magicWandOptions;
+      let { localMin } = magicWandOptions;
       localMin += type === DECREMENT_THRESHOLD ? -STEP : STEP;
-      console.log(`debug: thresholdAction localMin=${localMin}`)
-      setMagicWandOptions({...magicWandOptions, localMin})
-      setThresholdAction({type: undefined})
+      console.log(`debug: thresholdAction localMin=${localMin}`);
+      setMagicWandOptions({ ...magicWandOptions, localMin });
+      setThresholdAction({ type: undefined });
     }
-  }, [thresholdAction])
+  }, [thresholdAction]);
 
   useEffect(async () => {
     if (papaya.isLoaded()) {
@@ -107,28 +110,51 @@ export default function Papaya() {
 
   useEffect(async () => {
     if (window.Flywheel) {
-      setLoading({ status: true, text: "Loading NIFTIs from Flywheel..." });
-      window.Flywheel.initExtension().then((extension) => {
-        console.log(extension);
-        const {container} = extension;
-        const {files} = container;
-        console.log(files);
-        const blobs = files.map((file) => extension.getFileBlob(container, file))
-        Promise.all(blobs).then(blobs => {
-          const studyUrls = Object.fromEntries(
-            blobs.map((blob, i) => {
-              const fileName = files[i].name;
-              return [fileName.substr(0, fileName.indexOf('.')), URL.createObjectURL(blob)]
-            })
-          )
+      setLoading({ status: true, text: "Initializing BrainGraph as a Flywheel extension..." });
+      window.Flywheel.initExtension({ scope: 'ReadWrite', validateOrigin: origin => origin.endsWith('flywheel.io') })
+        .then((extension) => {
+          setExtension(extension);
           setLoading({ status: false, text: undefined });
-          setStudyUrls(studyUrls);
         })
-      }).catch(e => {
-        console.log('initExtension failed', e)
-      })
+        .catch((e) => {
+          console.log("initExtension failed", e);
+        });
     }
-  }, [])
+  }, []);
+
+  useEffect(async () => {
+    if (extension !== undefined) {
+      setLoading({ status: true, text: "Loading NIFTIs from Flywheel..." });
+      console.log(extension);
+      const { container } = extension;
+      const { files } = container;
+      console.log(files);
+      const blobs = files.map((file) => extension.getFileBlob(container, file));
+      Promise.all(blobs).then((blobs) => {
+        const studyUrls = Object.fromEntries(
+          blobs.map((blob, i) => {
+            const fileName = files[i].name;
+            return [fileName.substr(0, fileName.indexOf(".")), URL.createObjectURL(blob)];
+          })
+        );
+        setLoading({ status: false, text: undefined });
+        setStudyUrls(studyUrls);
+      });
+    }
+  }, [extension]);
+
+  useEffect(() => {
+    if (window.Flywheel && extension && uploadAction.volumeId) {
+      setLoading({ status: true, text: "Uploading data to Flywheel..." });
+      const { container } = extension;
+      const file = papaya.getFile(uploadAction.volumeId)
+      console.log(file);
+      extension.uploadFile(container, file).toPromise().then(() => {
+        setLoading({ status: false, text: undefined })
+      })
+      setUploadAction({volumeId: undefined})
+    }
+  }, [uploadAction]);
 
   return (
     <>
@@ -207,7 +233,7 @@ export default function Papaya() {
           className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           onClick={(e) => {
             e.preventDefault();
-            papaya.downloadNiiGz("lesion");
+            setUploadAction({ volumeId: "lesion" });
           }}
         >
           Save

@@ -41,6 +41,7 @@
     "d3": "^6.7.0",
     "jquery": "^3.6.0",
     "lodash": "^4.17.21",
+    "pako": "^2.0.3",
     "postcss-autoreset": "^3.0.4",
     "postcss-initial": "^3.0.4",
     "postcss-loader": "4.2.0",

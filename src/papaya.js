@@ -2,6 +2,7 @@ import * as THREE from "three";
 import $ from "jquery";
 import * as GraphXR from "./graphxr";
 import * as marchingCubes from "./marching-cubes";
+import pako from 'pako'
 
 export const MAGIC_WAND = "magicWand";
 export const PAINT_BRUSH = "paintBrush";
@@ -80,7 +81,7 @@ export async function loadPapaya(volumeUrls) {
           params: { alpha: 0 },
         },
         {
-          url: volumeUrls.lesions_original,
+          url: 'edited_lesion' in volumeUrls ? volumeUrls.edited_lesion : volumeUrls.lesions_original,
           params: { min: 0, max: 15, lut: "Red Overlay" },
         },
         {
@@ -123,8 +124,7 @@ export async function loadPapaya(volumeUrls) {
     console.log("Loading Papaya");
     window.papayaContainers = [];
     $(`div[data-params='params']`).remove();
-    if ($("#papaya").length == 0)
-      $("#app-root").append(`<div id="papaya" class="papaya" data-params="params"></div>`)
+    if ($("#papaya").length == 0) $("#app-root").append(`<div id="papaya" class="papaya" data-params="params"></div>`);
     window.papaya.Container.startPapaya();
   });
 }
@@ -349,6 +349,65 @@ export function getValueInBackground(coord) {
 export function redraw() {
   window.papayaContainers[0].viewer.drawViewer(true, false);
   renderGraph();
+}
+
+export function getFile(volumeId) {
+  const volume = volumes[volumeId];
+  const header = volume.header.fileFormat.nifti;
+  const imageData = volume.imageData.data;
+  const combined = combineNiftiParts(header, imageData);
+  const compressed = pako.gzip(combined)
+  const blob = new Blob([compressed], { type: "application/octet-stream", });
+  return new File([blob], "edited_lesion.nii.gz", {type: blob.type})
+}
+
+export function combineNiftiParts(header, imageData) {
+  var byteSize = imageData.byteLength + header.vox_offset;
+  var buffer = new ArrayBuffer(byteSize);
+
+  var viewOfHeader = new Uint8Array(buffer);
+  viewOfHeader.set(header.rawHeaderData);
+
+  let viewOfImageData;
+  console.log("Creating view of " + imageData.constructor.name);
+  switch (imageData.constructor.name) {
+    case "Int8Array":
+      viewOfImageData = new Int8Array(buffer, header.vox_offset);
+      break;
+    case "UInt8Array":
+      viewOfImageData = new UInt8Array(buffer, header.vox_offset);
+      break;
+    case "UInt8ClampedArray":
+      viewOfImageData = new UInt8ClampedArray(buffer, header.vox_offset);
+      break;
+    case "Int16Array":
+      viewOfImageData = new Int16Array(buffer, header.vox_offset);
+      break;
+    case "UInt16Array":
+      viewOfImageData = new UInt16Array(buffer, header.vox_offset);
+      break;
+    case "Int32Array":
+      viewOfImageData = new Int32Array(buffer, header.vox_offset);
+      break;
+    case "UInt32Array":
+      viewOfImageData = new UInt32Array(buffer, header.vox_offset);
+      break;
+    case "Float32Array":
+      viewOfImageData = new Float32Array(buffer, header.vox_offset);
+      break;
+    case "Float64Array":
+      viewOfImageData = new Float64Array(buffer, header.vox_offset);
+      break;
+    case "BigInt64Array":
+      viewOfImageData = new BigInt64Array(buffer, header.vox_offset);
+      break;
+    case "BigUInt64Array":
+      viewOfImageData = new BigUInt64Array(buffer, header.vox_offset);
+      break;
+  }
+  viewOfImageData.set(imageData);
+
+  return buffer;
 }
 
 export function downloadNiiGz(volumeId) {
