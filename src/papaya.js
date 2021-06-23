@@ -6,7 +6,15 @@ import pako from 'pako'
 
 export const MAGIC_WAND = "magicWand";
 export const PAINT_BRUSH = "paintBrush";
-export const LESION_VALUE = 1;
+
+const lesionValues = {
+  deepWhite: 2,
+  juxtacortical: undefined,
+  periventricular: 6,
+  infratentorial: 19,
+}
+
+export const DEFAULT_LESION_VALUE = lesionValues.deepWhite;
 
 const colors = (function () {
   let selected = new THREE.Color(0xff00ff);
@@ -195,7 +203,7 @@ export function commitSelection() {
 
     // Color lesion voxel
     const { xid, yid, zid } = node.properties;
-    setVoxel(volumes.lesion, xid, yid, zid, LESION_VALUE);
+    setVoxel(volumes.lesion, xid, yid, zid, DEFAULT_LESION_VALUE);
   });
   clear(volumes.sandbox);
   redraw();
@@ -278,7 +286,7 @@ export function paintBrush(coord) {
         const targetZ = coord.z + z;
         console.log("painting", targetX, targetY, targetZ, value);
         getImageDataIndex(volume, targetX, targetY, targetZ).forEach((index) => {
-          const node = makeNode(targetX, targetY, targetZ, "selected", volumes, dimensions);
+          const node = makeNode(targetX, targetY, targetZ, "selected");
           paintBrushSelection[node.id] = node;
           volume.imageData.data[index] = value;
         });
@@ -453,7 +461,7 @@ function hashXYZ(x, y, z) {
   return `${x},${y},${z}`;
 }
 
-function makeNode(x, y, z, category, volumes, dimensions) {
+function makeNode(x, y, z, category) {
   const id = hashXYZ(x, y, z);
   const choroidPlexus = volumes ? getVoxel(volumes.choroidPlexus, x, y, z) : 0;
   const lesion = volumes ? getVoxel(volumes.lesion, x, y, z) : 0;
@@ -476,7 +484,7 @@ function makeNode(x, y, z, category, volumes, dimensions) {
   return node;
 }
 
-function getUnvisitedNeighbors(nodes, node, category, volumes, dimensions) {
+function getUnvisitedNeighbors(nodes, node, category) {
   let { xid, yid, zid } = node.properties;
   let neighbors = [];
   for (let x = -1; x <= 1; x++) {
@@ -487,9 +495,9 @@ function getUnvisitedNeighbors(nodes, node, category, volumes, dimensions) {
           newy = yid + y,
           newz = zid + z;
         let id = hashXYZ(newx, newy, newz);
-        let neighbor = nodes[id];
+        let neighbor = nodes[id]; // 'id' is visited if it is in nodes
         if (!neighbor) {
-          neighbor = makeNode(newx, newy, newz, category, volumes, dimensions);
+          neighbor = makeNode(newx, newy, newz, category);
           neighbor.properties.visited = false;
           nodes[id] = neighbor;
           neighbors.push(neighbor);
@@ -500,7 +508,19 @@ function getUnvisitedNeighbors(nodes, node, category, volumes, dimensions) {
   return neighbors;
 }
 
-function bfs(nodes, node, min, max, volumeKey, category, maxBfsSteps, volumes, dimensions) {
+function isUncommitted(value) {
+  return value === 0
+}
+
+function inChoroidPlexus(value) {
+  return value === 8
+}
+
+function isBetween(value, min, max) {
+  return value >= min && value <= max
+}
+
+function bfs(nodes, node, testNeighborFn, category, maxBfsSteps, volumes, dimensions) {
   let queue = [node];
   let component = { [node.id]: node };
   let step = 1;
@@ -508,9 +528,7 @@ function bfs(nodes, node, min, max, volumeKey, category, maxBfsSteps, volumes, d
     let n = queue.shift();
     n.properties.visited = true;
     getUnvisitedNeighbors(nodes, n, category, volumes, dimensions).forEach((neighbor) => {
-      const val = neighbor.properties[volumeKey];
-      if (neighbor.properties.choroidPlexus != 8 && val >= min && val < max) {
-        neighbor.properties.selected = true;
+      if (testNeighborFn(neighbor)) {
         component[neighbor.id] = neighbor;
         queue.push(neighbor);
       }
@@ -521,68 +539,35 @@ function bfs(nodes, node, min, max, volumeKey, category, maxBfsSteps, volumes, d
   return { queue, component };
 }
 
-export function computeSelection({ screenVolumes, volumes, seed: { x, y, z }, localMin, globalMax, dimensions }) {
+export function computeSelection({ volumes, seed: { x, y, z }, localMin, globalMax, dimensions }) {
   console.log("computeSelection()", x, y, z, localMin);
   let id = hashXYZ(x, y, z);
-  const seedNode = makeNode(x, y, z, "lesion", volumes, dimensions);
-  if (getVoxel(volumes.lesion, x, y, z) > 0) {
+  const seedNode = makeNode(x, y, z, "selected");
+  const nodes = { [id]: seedNode };
+  const value = getVoxel(volumes.lesion, x, y, z)
+  if (value > 0) {
     console.log("Computing existing component");
-    const nodes = { [id]: seedNode };
-    const range = screenVolumes.lesion.getRange();
-    const { component, queue } = bfs(
+    return bfs(
       nodes,
       seedNode,
-      LESION_VALUE,
-      range[1],
-      "lesion",
+      (neighbor) => neighbor.properties.lesion === value,
       "selected",
       1e12,
       volumes,
       dimensions
     );
-    // drawSelection(Object.values(component), volumes.sandbox, 5);
-    return { component, queue, step: 0 };
   } else {
     console.log("Computing new component");
-    let step = 0;
-    let derivative = 0;
-    let lastComponent, lastQueue, derivativeDelta;
-    let searchMin = localMin;
-    while (true) {
-      const nodes = { [id]: seedNode };
-      const { component, queue } = bfs(
-        nodes,
-        seedNode,
-        searchMin,
-        globalMax,
-        "background",
-        "selected",
-        maxBfsSteps,
-        volumes,
-        dimensions
-      );
-      if (lastComponent) {
-        const lastCount = Object.keys(lastComponent).length;
-        const currentCount = Object.keys(component).length;
-        const derivativePrime = currentCount / lastCount;
-        derivativeDelta = derivativePrime - derivative;
-        derivative = derivativePrime;
-      }
-      lastComponent = component;
-      lastQueue = queue;
-      console.log({ derivative, derivativeDelta, component, lastComponent, searchMin });
-      searchMin -= 0.01;
-      // yield { component, queue, step };
-      break;
-      step++;
-      if (searchMin <= 1) break;
-      if (Math.abs(derivativeDelta) < 0.01) {
-        console.log("derivativeDelta");
-        break;
-      }
-      if (derivative == 1) break;
-    }
-    // drawSelection(Object.values(lastComponent), volumes.sandbox, 5);
-    return { component: lastComponent, queue: lastQueue, step };
+    return bfs(
+      nodes,
+      seedNode,
+      (neighbor) => (!inChoroidPlexus(neighbor.properties.choroidPlexus)
+        && isBetween(neighbor.properties.background, localMin, globalMax)
+        && isUncommitted(neighbor.properties.lesion)),
+      "selected",
+      maxBfsSteps,
+      volumes,
+      dimensions
+    );
   }
 }
