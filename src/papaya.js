@@ -103,12 +103,18 @@ export async function loadPapaya(volumeUrls) {
       dimensions = { xDim, yDim, zDim };
 
       volumes = {
+        t1: viewer.screenVolumes[0].volume,
+        flair: viewer.screenVolumes[1].volume,
+        choroidPlexus: viewer.screenVolumes[2].volume,
         background: viewer.screenVolumes[3].volume,
         lesion: viewer.screenVolumes[4].volume,
         sandbox: viewer.screenVolumes[5].volume,
       };
 
       screenVolumes = {
+        t1: viewer.screenVolumes[0],
+        flair: viewer.screenVolumes[1],
+        choroidPlexus: viewer.screenVolumes[2],
         background: viewer.screenVolumes[3],
         lesion: viewer.screenVolumes[4],
         sandbox: viewer.screenVolumes[5],
@@ -449,6 +455,7 @@ function hashXYZ(x, y, z) {
 
 function makeNode(x, y, z, category, volumes, dimensions) {
   const id = hashXYZ(x, y, z);
+  const choroidPlexus = volumes ? getVoxel(volumes.choroidPlexus, x, y, z) : 0;
   const lesion = volumes ? getVoxel(volumes.lesion, x, y, z) : 0;
   const background = volumes ? getVoxel(volumes.background, x, y, z) : 0;
   const node = GraphXR.makeNode(id);
@@ -462,6 +469,7 @@ function makeNode(x, y, z, category, volumes, dimensions) {
       zid: z,
       lesion,
       background,
+      choroidPlexus,
     },
   };
   node.position = scalePosition({ x, y, z });
@@ -501,7 +509,7 @@ function bfs(nodes, node, min, max, volumeKey, category, maxBfsSteps, volumes, d
     n.properties.visited = true;
     getUnvisitedNeighbors(nodes, n, category, volumes, dimensions).forEach((neighbor) => {
       const val = neighbor.properties[volumeKey];
-      if (val >= min && val < max) {
+      if (neighbor.properties.choroidPlexus != 8 && val >= min && val < max) {
         neighbor.properties.selected = true;
         component[neighbor.id] = neighbor;
         queue.push(neighbor);
