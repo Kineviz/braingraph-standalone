@@ -7,14 +7,15 @@ import pako from 'pako'
 export const MAGIC_WAND = "magicWand";
 export const PAINT_BRUSH = "paintBrush";
 
-const lesionValues = {
-  deepWhite: 2,
-  juxtacortical: undefined,
-  periventricular: 6,
-  infratentorial: 19,
+export const lesionTypes = {
+  deepWhite: {value: 2, label: 'Deep White'},
+  juxtacortical: {value: -1, label: 'Juxtacortical'},
+  periventricular: {value: 6, label: 'Periventricular'},
+  infratentorial: {value: 19, label: 'Infratentorial'},
 }
 
-export const DEFAULT_LESION_VALUE = lesionValues.deepWhite;
+export const DEFAULT_LESION_TYPE = lesionTypes.deepWhite.value;
+export const NEW_SELECTION_VALUE = 5
 
 const colors = (function () {
   let selected = new THREE.Color(0xff00ff);
@@ -90,11 +91,11 @@ export async function loadPapaya(volumeUrls) {
         },
         {
           url: 'edited_lesion' in volumeUrls ? volumeUrls.edited_lesion : volumeUrls.lesions_original,
-          params: { min: 0, max: 15, lut: "Red Overlay" },
+          params: { min: 0, max: 20, lut: "Spectrum" },
         },
         {
           url: volumeUrls.blank,
-          params: { min: 4.99, max: 10.01, lut: "Green Overlay" },
+          params: { min: 0, max: 20, lut: "Spectrum" },
         },
       ],
     };
@@ -194,7 +195,7 @@ export function getSelectedNodes() {
   });
 }
 
-export function commitSelection() {
+export function commitSelection(lesionType) {
   getSelectedNodes().forEach((node) => {
     // Map Selected Node to Lesion Node
     node.data.detail.type = "lesion";
@@ -203,7 +204,7 @@ export function commitSelection() {
 
     // Color lesion voxel
     const { xid, yid, zid } = node.properties;
-    setVoxel(volumes.lesion, xid, yid, zid, DEFAULT_LESION_VALUE);
+    setVoxel(volumes.lesion, xid, yid, zid, lesionType);
   });
   clear(volumes.sandbox);
   redraw();
@@ -222,19 +223,18 @@ export function removeSelection() {
   redraw();
 }
 
-export function updateSelection(localMin, seed) {
-  if (seed && screenVolumes && volumes) {
-    let { component, queue, step } = computeSelection({
-      screenVolumes,
-      volumes,
-      seed,
-      localMin,
-      globalMax,
-      dimensions,
-    });
-    currentSelection = component;
-    drawSelection(Object.values(component), volumes.sandbox, 5);
-  }
+export function updateSelection(magicWandOptions) {
+  const {localMin, seed} = magicWandOptions;
+  let { component } = computeSelection({
+    screenVolumes,
+    volumes,
+    seed,
+    localMin,
+    globalMax,
+    dimensions,
+  });
+  currentSelection = component;
+  return { selection: currentSelection };
 }
 
 export function fill(volume, value) {
@@ -246,6 +246,7 @@ export function clear(volume) {
 }
 
 export function getVoxel(volume, x, y, z) {
+  if (typeof volume === 'string') volume = volumes[volume]
   const container = window.papayaContainers[0];
   const viewer = container.viewer;
   const backgroundScreenVolume = viewer.screenVolumes[0];
@@ -271,13 +272,13 @@ export function getVoxel(volume, x, y, z) {
   }
 }
 
-export function magicWand(localMin, seed) {
-  updateSelection(localMin, seed);
+export function magicWand(magicWandOptions) {
+  return updateSelection(magicWandOptions);
 }
 
 export function paintBrush(coord) {
   const volume = volumes.sandbox;
-  const value = 5;
+  const value = NEW_SELECTION_VALUE;
   for (let x = -radius; x <= radius; x++) {
     for (let y = -radius; y <= radius; y++) {
       for (let z = -radius; z <= radius; z++) {
@@ -445,9 +446,10 @@ class Node {
   }
 }
 
-export function drawSelection(nodes, volume, value) {
+export function drawSelection(nodes, value) {
+  const volume = volumes.sandbox;
   if (nodes && nodes.length > 0) {
-    console.log(`highlighting ${nodes.length} component nodes`);
+    console.log(`highlighting ${nodes.length} component nodes with value ${value}`);
     clear(volume);
     nodes.forEach((node) => {
       const { xid, yid, zid } = node.properties;

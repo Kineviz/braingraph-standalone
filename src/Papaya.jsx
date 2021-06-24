@@ -1,22 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
 import { Oval } from "svg-loaders-react";
 import _ from "lodash";
 
 import * as papaya from "./papaya.js";
-import * as cognito from "./cognito.js";
-import { setJwt, getJwt } from "./features/s3-url-service/s3UrlServiceSlice";
 
 import "./papaya.css";
 
 const STEP = 0.1;
 
-const debouncedMagicWand = _.debounce((magicWandOptions, setLoading) => {
+const debouncedMagicWand = _.debounce((magicWandOptions, setLoading, setSelection) => {
   if (papaya.isLoaded()) {
     setLoading({ status: true, text: "Computing selection..." });
+
     console.log(`debug: magicWandOptions`, magicWandOptions);
-    const { localMin, seed } = magicWandOptions;
-    papaya.magicWand(localMin, seed);
+    const { selection } = papaya.magicWand(magicWandOptions);
+    const { seed } = magicWandOptions;
+    const seedValue = papaya.getVoxel("lesion", seed.x, seed.y, seed.z);
+    console.log(`seedValue ${seedValue} at ${seed}`);
+    const lesionType = seedValue > 0 ? seedValue : papaya.DEFAULT_LESION_TYPE;
+    setSelection({ nodes: selection, lesionType });
+
     setLoading({ status: false, text: undefined });
   }
 }, 300);
@@ -24,6 +27,7 @@ const debouncedMagicWand = _.debounce((magicWandOptions, setLoading) => {
 export default function Papaya() {
   const [studyUrls, setStudyUrls] = useState(undefined);
   const [magicWandOptions, setMagicWandOptions] = useState({ seed: undefined, localMin: undefined });
+  const [selection, setSelection] = useState({ nodes: undefined, lesionType: undefined });
 
   const DECREMENT_THRESHOLD = "DECREMENT_THRESHOLD";
   const INCREMENT_THRESHOLD = "INCREMENT_THRESHOLD";
@@ -105,13 +109,13 @@ export default function Papaya() {
   }, [studyUrls]);
 
   useEffect(async () => {
-    debouncedMagicWand(magicWandOptions, setLoading);
+    debouncedMagicWand(magicWandOptions, setLoading, setSelection);
   }, [magicWandOptions]);
 
   useEffect(async () => {
     if (window.Flywheel) {
       setLoading({ status: true, text: "Initializing BrainGraph as a Flywheel extension..." });
-      window.Flywheel.initExtension({ scope: 'ReadWrite', validateOrigin: origin => origin.endsWith('flywheel.io') })
+      window.Flywheel.initExtension({ scope: "ReadWrite", validateOrigin: (origin) => origin.endsWith("flywheel.io") })
         .then((extension) => {
           setExtension(extension);
           setLoading({ status: false, text: undefined });
@@ -147,14 +151,26 @@ export default function Papaya() {
     if (window.Flywheel && extension && uploadAction.volumeId) {
       setLoading({ status: true, text: "Uploading data to Flywheel..." });
       const { container } = extension;
-      const file = papaya.getFile(uploadAction.volumeId)
+      const file = papaya.getFile(uploadAction.volumeId);
       console.log(file);
-      extension.uploadFile(container, file).toPromise().then(() => {
-        setLoading({ status: false, text: undefined })
-      })
-      setUploadAction({volumeId: undefined})
+      extension
+        .uploadFile(container, file)
+        .toPromise()
+        .then(() => {
+          setLoading({ status: false, text: undefined });
+        });
+      setUploadAction({ volumeId: undefined });
     }
   }, [uploadAction]);
+
+  useEffect(() => {
+    if (selection) {
+      const { nodes, lesionType } = selection;
+      if (nodes && lesionType) {
+        papaya.drawSelection(Object.values(nodes), lesionType);
+      }
+    }
+  }, [selection]);
 
   return (
     <>
@@ -187,6 +203,27 @@ export default function Papaya() {
           }}
           value={magicWandOptions.localMin}
         />
+        <select
+          name="lesionType"
+          id="lesionType"
+          value={selection.lesionType}
+          onChange={(e) => {
+            e.preventDefault();
+            setSelection({
+              ...selection,
+              lesionType: e.target.value,
+            });
+          }}
+        >
+          {Object.keys(papaya.lesionTypes).map((key) => {
+            const value = papaya.lesionTypes[key].value;
+            return (
+              <option key={value} value={value}>
+                {papaya.lesionTypes[key].label}
+              </option>
+            );
+          })}
+        </select>
         <button
           className={`rounded-lg border-2 m-2 p-2 pr-4 pl-4 ${
             tool === papaya.MAGIC_WAND ? "text-white bg-gradient-to-r from-green-400 to-blue-500" : ""
@@ -213,7 +250,8 @@ export default function Papaya() {
           className="rounded-lg border-2 m-2 p-2 pr-4 pl-4"
           onClick={(e) => {
             e.preventDefault();
-            papaya.commitSelection();
+            console.log(`commitSelection(${selection.lesionType})`);
+            papaya.commitSelection(selection.lesionType);
             papaya.renderGraph();
           }}
         >
